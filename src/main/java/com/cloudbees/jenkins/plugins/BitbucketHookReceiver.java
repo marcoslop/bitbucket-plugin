@@ -6,6 +6,7 @@ import hudson.model.Hudson;
 import hudson.model.UnprotectedRootAction;
 import hudson.plugins.git.GitSCM;
 import hudson.plugins.git.GitStatus;
+import hudson.plugins.git.BranchSpec;
 import hudson.scm.SCM;
 import hudson.security.ACL;
 import jenkins.model.Jenkins;
@@ -120,8 +121,15 @@ public class BitbucketHookReceiver implements UnprotectedRootAction {
                     LOGGER.info("considering candidate job " + job.getName());
                     BitBucketTrigger trigger = job.getTrigger(BitBucketTrigger.class);
                     if (trigger!=null) {
-                        if (match(job.getScm(), remote)) {
-                        	trigger.onPost(job, user);
+                        SCM jobScm = job.getScm();
+                        if (match(jobScm, remote)) {
+                            if (matchBranch(jobScm, branch)) {
+                                //Vamos a checkear si el branch se corresponde
+                                LOGGER.info("launching job: " + job.getName());
+                                trigger.onPost(job, user);
+                            }else{
+                                LOGGER.info("job: " + job.getName()+" does not belong to branch "+branch);
+                            }
                         } else LOGGER.info("job SCM doesn't match remote repo");
                     } else LOGGER.info("job hasn't BitBucketTrigger set");
                 }
@@ -143,6 +151,17 @@ public class BitbucketHookReceiver implements UnprotectedRootAction {
                 for (URIish urIish : remoteConfig.getURIs()) {
                     if (GitStatus.looselyMatches(urIish, url))
                         return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean matchBranch(SCM scm, String branch){
+        if (scm instanceof GitSCM) {
+            for (BranchSpec branchSpec : ((GitSCM) scm).getBranches()) {
+                if (branchSpec.getName().equals(branch)){
+                    return true;
                 }
             }
         }
